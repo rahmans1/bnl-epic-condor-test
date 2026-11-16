@@ -145,7 +145,20 @@ A config is a sourced bash file. Keys:
 | `mergers/` | The production merger adapters, copied unchanged from swf-epicprod `swf_epicprod/payload/mergers/` (3b8cef0). |
 | `configs/` | One sample per file. |
 | `config_data/` | Campaign background-source JSONs, from eicweb `EIC/campaigns/datasets`. |
+| `tools/` | `status.sh`: RECO count, Condor states and failed stages for each run directory. `check_reco.py`: gun particles and background counts per event in a RECO file. |
+| `.claude/skills/epic-condor-run/` | Claude Code skill: how to run, test, monitor and check jobs with this repo. |
 | `bench/` | The merger benchmark (SignalBackgroundMerger vs TimeFrameBuilder) and the TimeFrameBuilder memory study. |
+
+## Monitoring and checking
+
+    tools/status.sh [OUT_BASE]                       # RECO written / chunks, Condor idle/run/held, failed stages
+    apptainer exec --cleanenv -B /gpfs02,/gpfs/mnt/gpfs02 \
+      /cvmfs/singularity.opensciencegrid.org/eicweb/eic_xl:26.07.3-stable \
+      python3 tools/check_reco.py <RECO file> [max_events]   # gun PDG/theta/|p|/time and status counts per event
+
+With Claude Code, open the repo and ask it to run or check jobs: the
+`epic-condor-run` skill (`.claude/skills/`) walks through dry run, a small
+local test, the full submission, monitoring and resubmission.
 
 ## Output and resubmission
 

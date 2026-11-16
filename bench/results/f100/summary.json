@@ -1,0 +1,374 @@
+{
+ "sample": "allbg_10x275_GoldCoating10um",
+ "frames_per_chunk": 100,
+ "chunks": 47,
+ "frames": {
+  "hepmcmerger": 4700,
+  "timeframebuilder": 4700
+ },
+ "merger_images": {
+  "hepmcmerger": "/cvmfs/singularity.opensciencegrid.org/eicweb/eic_xl:26.07.3-stable",
+  "timeframebuilder": "/cvmfs/singularity.opensciencegrid.org/eicweb/eic_xl:26.11.0-stable"
+ },
+ "beam_vertices_per_event": {
+  "6000": 2,
+  "2000": 1,
+  "3000": 1,
+  "4000": 1,
+  "5000": 1
+ },
+ "sources": {
+  "6000": {
+   "expected_per_frame": 0.0652,
+   "mean_per_frame": {
+    "hepmcmerger": 0.06595744680851064,
+    "timeframebuilder": 0.06468085106382979
+   },
+   "mean_err": {
+    "hepmcmerger": 0.0038038197427774072,
+    "timeframebuilder": 0.003663036988411962
+   },
+   "var_over_mean": {
+    "hepmcmerger": 1.0310361161262867,
+    "timeframebuilder": 0.9750002800147846
+   },
+   "pull_vs_expected": {
+    "hepmcmerger": 0.20336549640307328,
+    "timeframebuilder": -0.13938534023131785
+   },
+   "nev_chi2": {
+    "chi2": 4.109913023277393,
+    "ndf": 2,
+    "p": 0.12809840624617475
+   },
+   "total_events": {
+    "hepmcmerger": 310,
+    "timeframebuilder": 304
+   },
+   "final_state_particles": {
+    "hepmcmerger": 5448,
+    "timeframebuilder": 5236
+   },
+   "tev_chi2": {
+    "chi2": 107.23313753745309,
+    "ndf": 99,
+    "p": 0.2687132458606569,
+    "particles_per_event": 1.0
+   },
+   "tfs_chi2": {
+    "chi2": 116.47013466085079,
+    "ndf": 100,
+    "p": 0.12450817352269203,
+    "particles_per_event": 17.400651465798045
+   },
+   "p_chi2": {
+    "chi2": 0.833823741944053,
+    "ndf": 51,
+    "p": 1.0,
+    "particles_per_event": 17.400651465798045
+   },
+   "th_chi2": {
+    "chi2": 1.6087206701301027,
+    "ndf": 72,
+    "p": 1.0,
+    "particles_per_event": 17.400651465798045
+   },
+   "sequence": {
+    "particles_compared": 4088,
+    "chunks_identical": 47,
+    "chunks_compared": 47,
+    "min_fraction_identical": 1.0
+   }
+  },
+  "2000": {
+   "expected_per_frame": 26554.0,
+   "mean_per_frame": {
+    "hepmcmerger": 26552.160212765957,
+    "timeframebuilder": 26556.299787234042
+   },
+   "mean_err": {
+    "hepmcmerger": 2.3365394974074376,
+    "timeframebuilder": 2.3868239129171753
+   },
+   "var_over_mean": {
+    "hepmcmerger": 0.9663718078766654,
+    "timeframebuilder": 1.0082565588394081
+   },
+   "pull_vs_expected": {
+    "hepmcmerger": -0.7740188806259212,
+    "timeframebuilder": 0.9675459790311208
+   },
+   "nev_chi2": {
+    "chi2": 868.6833080249367,
+    "ndf": 868,
+    "p": 0.4870781399740086
+   },
+   "total_events": {
+    "hepmcmerger": 124795153,
+    "timeframebuilder": 124814609
+   },
+   "final_state_particles": {
+    "hepmcmerger": 124795153,
+    "timeframebuilder": 124814609
+   },
+   "tev_chi2": {
+    "chi2": 101.06316781739694,
+    "ndf": 99,
+    "p": 0.4235046230836247,
+    "particles_per_event": 1.0
+   },
+   "tfs_chi2": {
+    "chi2": 101.06316781739694,
+    "ndf": 99,
+    "p": 0.4235046230836247,
+    "particles_per_event": 1.0
+   },
+   "p_chi2": {
+    "chi2": 0.02303785506634587,
+    "ndf": 19,
+    "p": 1.0,
+    "particles_per_event": 1.0
+   },
+   "th_chi2": {
+    "chi2": 0.16834075710914603,
+    "ndf": 89,
+    "p": 1.0,
+    "particles_per_event": 1.0
+   },
+   "sequence": {
+    "particles_compared": 9400000,
+    "chunks_identical": 46,
+    "chunks_compared": 47,
+    "min_fraction_identical": 0.0
+   }
+  },
+  "3000": {
+   "expected_per_frame": 6.3545,
+   "mean_per_frame": {
+    "hepmcmerger": 6.361702127659575,
+    "timeframebuilder": 6.347021276595744
+   },
+   "mean_err": {
+    "hepmcmerger": 0.0364503239636395,
+    "timeframebuilder": 0.036994023056855604
+   },
+   "var_over_mean": {
+    "hepmcmerger": 0.9815836430009658,
+    "timeframebuilder": 1.0134236371311527
+   },
+   "pull_vs_expected": {
+    "hepmcmerger": 0.1958705090579288,
+    "timeframebuilder": -0.203392862433855
+   },
+   "nev_chi2": {
+    "chi2": 27.145922782938918,
+    "ndf": 18,
+    "p": 0.07629891933815987
+   },
+   "total_events": {
+    "hepmcmerger": 29900,
+    "timeframebuilder": 29831
+   },
+   "final_state_particles": {
+    "hepmcmerger": 59800,
+    "timeframebuilder": 59662
+   },
+   "tev_chi2": {
+    "chi2": 100.08346083016781,
+    "ndf": 99,
+    "p": 0.4506271982323928,
+    "particles_per_event": 1.0
+   },
+   "tfs_chi2": {
+    "chi2": 100.08346083016781,
+    "ndf": 99,
+    "p": 0.4506271982323928,
+    "particles_per_event": 2.0
+   },
+   "p_chi2": {
+    "chi2": 1.0943932249743635,
+    "ndf": 64,
+    "p": 1.0,
+    "particles_per_event": 2.0
+   },
+   "th_chi2": {
+    "chi2": 5.338119175895636e-06,
+    "ndf": 3,
+    "p": 0.9999999967197986,
+    "particles_per_event": 2.0
+   },
+   "sequence": {
+    "particles_compared": 58212,
+    "chunks_identical": 47,
+    "chunks_compared": 47,
+    "min_fraction_identical": 1.0
+   }
+  },
+  "4000": {
+   "expected_per_frame": 0.05912,
+   "mean_per_frame": {
+    "hepmcmerger": 0.06340425531914894,
+    "timeframebuilder": 0.05446808510638298
+   },
+   "mean_err": {
+    "hepmcmerger": 0.003789223811122144,
+    "timeframebuilder": 0.0034049910231815327
+   },
+   "var_over_mean": {
+    "hepmcmerger": 1.0643389783061086,
+    "timeframebuilder": 1.000432272824005
+   },
+   "pull_vs_expected": {
+    "hepmcmerger": 1.2079725372082095,
+    "timeframebuilder": -1.3116364498172568
+   },
+   "nev_chi2": {
+    "chi2": 5.503336972329219,
+    "ndf": 3,
+    "p": 0.1384391656660129
+   },
+   "total_events": {
+    "hepmcmerger": 298,
+    "timeframebuilder": 256
+   },
+   "final_state_particles": {
+    "hepmcmerger": 298,
+    "timeframebuilder": 256
+   },
+   "tev_chi2": {
+    "chi2": 101.6564319716218,
+    "ndf": 98,
+    "p": 0.37999625544950555,
+    "particles_per_event": 1.0
+   },
+   "tfs_chi2": {
+    "chi2": 101.6564319716218,
+    "ndf": 98,
+    "p": 0.37999625544950555,
+    "particles_per_event": 1.0
+   },
+   "p_chi2": {
+    "chi2": NaN,
+    "ndf": 0,
+    "p": NaN,
+    "particles_per_event": 1.0
+   },
+   "th_chi2": {
+    "chi2": NaN,
+    "ndf": 0,
+    "p": NaN,
+    "particles_per_event": 1.0
+   },
+   "sequence": {
+    "particles_compared": 218,
+    "chunks_identical": 46,
+    "chunks_compared": 46,
+    "min_fraction_identical": 1.0
+   }
+  },
+  "5000": {
+   "expected_per_frame": 0.46699999999999997,
+   "mean_per_frame": {
+    "hepmcmerger": 0.45680851063829786,
+    "timeframebuilder": 0.47297872340425534
+   },
+   "mean_err": {
+    "hepmcmerger": 0.009825747283042335,
+    "timeframebuilder": 0.010101449820705256
+   },
+   "var_over_mean": {
+    "hepmcmerger": 0.9933329718747201,
+    "timeframebuilder": 1.0139666588071063
+   },
+   "pull_vs_expected": {
+    "hepmcmerger": -1.0224171934193118,
+    "timeframebuilder": 0.5997896270372225
+   },
+   "nev_chi2": {
+    "chi2": 6.684107556574853,
+    "ndf": 5,
+    "p": 0.2452133602813605
+   },
+   "total_events": {
+    "hepmcmerger": 2147,
+    "timeframebuilder": 2223
+   },
+   "final_state_particles": {
+    "hepmcmerger": 2147,
+    "timeframebuilder": 2223
+   },
+   "tev_chi2": {
+    "chi2": 111.282952870884,
+    "ndf": 99,
+    "p": 0.18776910086105147,
+    "particles_per_event": 1.0
+   },
+   "tfs_chi2": {
+    "chi2": 111.282952870884,
+    "ndf": 99,
+    "p": 0.18776910086105147,
+    "particles_per_event": 1.0
+   },
+   "p_chi2": {
+    "chi2": 0.0141328017717385,
+    "ndf": 1,
+    "p": 0.9053692695629891,
+    "particles_per_event": 1.0
+   },
+   "th_chi2": {
+    "chi2": NaN,
+    "ndf": 0,
+    "p": NaN,
+    "particles_per_event": 1.0
+   },
+   "sequence": {
+    "particles_compared": 2024,
+    "chunks_identical": 47,
+    "chunks_compared": 47,
+    "min_fraction_identical": 1.0
+   }
+  }
+ },
+ "performance": {
+  "hepmcmerger": {
+   "100": {
+    "jobs": 60,
+    "wall_s_median": 54.5,
+    "cpu_s_median": 47.0,
+    "pss_gb_max": 2.1871376037597656
+   },
+   "500": {
+    "jobs": 20,
+    "wall_s_median": 332.0,
+    "cpu_s_median": 234.5,
+    "pss_gb_max": 2.2757568359375
+   },
+   "1000": {
+    "jobs": 3,
+    "wall_s_median": 699.0,
+    "cpu_s_median": 478.0,
+    "pss_gb_max": 2.1731319427490234
+   }
+  },
+  "timeframebuilder": {
+   "100": {
+    "jobs": 60,
+    "wall_s_median": 70.0,
+    "cpu_s_median": 47.0,
+    "pss_gb_max": 3.3093509674072266
+   },
+   "500": {
+    "jobs": 20,
+    "wall_s_median": 289.0,
+    "cpu_s_median": 227.5,
+    "pss_gb_max": 8.044012069702148
+   },
+   "1000": {
+    "jobs": 3,
+    "wall_s_median": 713.0,
+    "cpu_s_median": 446.0,
+    "pss_gb_max": 13.356149673461914
+   }
+  }
+ }
+}

@@ -1,0 +1,37 @@
+{
+ "6000": {
+  "file": "root://dtn2304.jlab.org:8443//jlab-osdf-ro/eic/EPIC/volatile/EVGEN/BACKGROUNDS/BEAMGAS/proton/pythia8.306-1.0/275GeV/combined/pythia8.306-1.0_ProtonBeamGas_275GeV_combined.hepmc3.tree.root",
+  "entries": 10000000,
+  "beam_vertices_per_event": 2,
+  "fraction_with_that": 1.0,
+  "events_read": 1000
+ },
+ "2000": {
+  "file": "root://dtn2304.jlab.org:8443//jlab-osdf-ro/eic/EPIC/volatile/EVGEN/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/10x275/GoldCoating/10um/dataprod_rel_1.0.0_synrad_10x275_run001.preproc_10000repeats.hepmc3.tree.root",
+  "entries": 832375,
+  "beam_vertices_per_event": 1,
+  "fraction_with_that": 1.0,
+  "events_read": 1000
+ },
+ "3000": {
+  "file": "root://dtn2304.jlab.org:8443//jlab-osdf-ro/eic/EPIC/volatile/EVGEN/BACKGROUNDS/BEAMGAS/electron/GETaLM1.0.0-1.0/10GeV/GETaLM1.0.0-1.0_ElectronBeamGas_10GeV_foam_emin10keV_run001.hepmc3.tree.root",
+  "entries": 30000000,
+  "beam_vertices_per_event": 1,
+  "fraction_with_that": 1.0,
+  "events_read": 1000
+ },
+ "4000": {
+  "file": "root://dtn2304.jlab.org:8443//jlab-osdf-ro/eic/EPIC/volatile/EVGEN/BACKGROUNDS/BEAMGAS/electron/coulomb/EIC_ESR_Xsuite/dataprod_rel_1.0.1/10x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_coulomb_10x275_10000Ahr.hepmc3.tree.root",
+  "entries": 1478187,
+  "beam_vertices_per_event": 1,
+  "fraction_with_that": 1.0,
+  "events_read": 1000
+ },
+ "5000": {
+  "file": "root://dtn2304.jlab.org:8443//jlab-osdf-ro/eic/EPIC/volatile/EVGEN/BACKGROUNDS/BEAMGAS/electron/touschek/EIC_ESR_Xsuite/dataprod_rel_1.0.1/10x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_touschek_10x275_10000Ahr.hepmc3.tree.root",
+  "entries": 11674943,
+  "beam_vertices_per_event": 1,
+  "fraction_with_that": 1.0,
+  "events_read": 1000
+ }
+}

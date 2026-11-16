@@ -13,7 +13,8 @@
 #             (configs/allbg_*.env): one gun particle per 2 us frame
 #   -M NAME   overlay merger: timeframebuilder or hepmcmerger  [timeframebuilder]
 #   -o DIR    output base                                         [./out]   
-#   -m MB     request_memory                                     [6000]
+#   -m MB     initial request_memory              [plain gun 3500, overlay 6000]
+#   -R MB     memory cap for automatic retries (x2 per OOM)      [12000]
 #   -F        keep the FULL (edm4hep) files too
 #   -H        overlay: keep the merged HepMC files too
 #   -d        dry run: write the run directories and .sub files, do not submit
@@ -41,17 +42,17 @@ set -euo pipefail
 HERE=$(dirname "$(realpath "$0")")
 TOP=$(dirname "${HERE}")
 
-CONFIG="" NJOBS="" FIRST=0 OUT_BASE=${TOP}/out MEM=6000 KEEP_FULL=0 KEEP_MERGED=0 DRY=0
+CONFIG="" NJOBS="" FIRST=0 OUT_BASE=${TOP}/out MEM="" MEM_MAX=12000 KEEP_FULL=0 KEEP_MERGED=0 DRY=0
 EPC="" PARTS="" BGCONFIG="" MERGER=timeframebuilder
-while getopts "c:n:s:e:p:B:M:o:m:FHd" opt; do
+while getopts "c:n:s:e:p:B:M:o:m:R:FHd" opt; do
   case $opt in
     c) CONFIG=$OPTARG ;; n) NJOBS=$OPTARG ;; s) FIRST=$OPTARG ;; e) EPC=$OPTARG ;;
     p) PARTS=$OPTARG ;; B) BGCONFIG=$OPTARG ;; M) MERGER=$OPTARG ;;
-    o) OUT_BASE=$OPTARG ;; m) MEM=$OPTARG ;; F) KEEP_FULL=1 ;; H) KEEP_MERGED=1 ;; d) DRY=1 ;;
-    *) sed -n '2,39p' "$0"; exit 2 ;;
+    o) OUT_BASE=$OPTARG ;; m) MEM=$OPTARG ;; R) MEM_MAX=$OPTARG ;; F) KEEP_FULL=1 ;; H) KEEP_MERGED=1 ;; d) DRY=1 ;;
+    *) sed -n '2,40p' "$0"; exit 2 ;;
   esac
 done
-[ -n "${CONFIG}" ] || { sed -n '2,39p' "$0"; exit 2; }
+[ -n "${CONFIG}" ] || { sed -n '2,40p' "$0"; exit 2; }
 CONFIG=$(realpath "${CONFIG}")
 source "${CONFIG}"
 [ "${MODE:-}" = gun ] || { echo "${CONFIG} does not set MODE=gun"; exit 2; }
@@ -85,8 +86,10 @@ if [ -n "${BGCONFIG}" ]; then
   esac
   [ -n "${MERGER_CONTAINER}" ] || { echo "${BGCONFIG} names no image for ${MERGER}"; exit 1; }
   EVENTS_PER_CHUNK=${EPC:-${OVERLAY_EVENTS_PER_CHUNK:-100}}
+  MEM=${MEM:-6000}
 else
   EVENTS_PER_CHUNK=${EPC:-${EVENTS_PER_CHUNK}}
+  MEM=${MEM:-3500}   # measured peak 2.6 GB (eicrecon), mostly the geometry
 fi
 [ -n "${NJOBS}" ] || NJOBS=$(( (GUN_EVENTS + EVENTS_PER_CHUNK - 1) / EVENTS_PER_CHUNK ))
 LAST=$((FIRST + NJOBS - 1))
@@ -171,6 +174,13 @@ executable       = ${HERE}/gun_job.sh
 arguments        = \$(chunk) ${OUT_DIR}
 accounting_group = group_eic
 request_memory   = ${MEM} MB
+# Memory escalation: a job killed for exceeding its memory goes back to the
+# queue with twice the request, up to ${MEM_MAX} MB (HTCondor
+# retry_request_memory; SDCC enforces hard cgroup limits). After 4 starts a
+# job is held instead of looping.
+retry_request_memory = min({RequestMemory * 2, ${MEM_MAX}})
+periodic_hold    = (NumJobStarts >= 4) && (JobStatus == 1)
+periodic_hold_reason = "held after 4 starts: memory retries up to ${MEM_MAX} MB exhausted, or repeated eviction"
 request_cpus     = 1
 request_disk     = 20 GB
 getenv           = False

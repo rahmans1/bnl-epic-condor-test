@@ -10,7 +10,8 @@
 #   -s N      first chunk index (to extend a run)                [0]
 #   -M NAME   merger: hepmcmerger or timeframebuilder            [hepmcmerger]
 #   -o DIR    output base; the run goes to DIR/<SAMPLE>/<MERGER> [./out]
-#   -m MB     request_memory                                     [6000]
+#   -m MB     initial request_memory                             [6000]
+#   -R MB     memory cap for automatic retries (x2 per OOM)      [12000]
 #   -F        keep the FULL (edm4hep) files too
 #   -H        keep the merged HepMC files too
 #   -X        merge-only benchmark: merge, then bench/extract.py's summary to
@@ -40,17 +41,17 @@ for ((i = 1; i <= $#; i++)); do
   fi
 done
 
-CONFIG="" NJOBS="" FRAMES=100 FIRST=0 OUT_BASE=${HERE}/out MEM=6000
+CONFIG="" NJOBS="" FRAMES=100 FIRST=0 OUT_BASE=${HERE}/out MEM=6000 MEM_MAX=12000
 KEEP_FULL=0 KEEP_MERGED=0 DRY=0 MERGER=hepmcmerger MERGE_ONLY=0
-while getopts "c:n:f:s:M:o:m:FHXd" opt; do
+while getopts "c:n:f:s:M:o:m:R:FHXd" opt; do
   case $opt in
     c) CONFIG=$OPTARG ;; n) NJOBS=$OPTARG ;; f) FRAMES=$OPTARG ;;
-    s) FIRST=$OPTARG ;; M) MERGER=$OPTARG ;; o) OUT_BASE=$OPTARG ;; m) MEM=$OPTARG ;;
+    s) FIRST=$OPTARG ;; M) MERGER=$OPTARG ;; o) OUT_BASE=$OPTARG ;; m) MEM=$OPTARG ;; R) MEM_MAX=$OPTARG ;;
     F) KEEP_FULL=1 ;; H) KEEP_MERGED=1 ;; X) MERGE_ONLY=1 ;; d) DRY=1 ;;
-    *) sed -n '2,29p' "$0"; exit 2 ;;
+    *) sed -n '2,32p' "$0"; exit 2 ;;
   esac
 done
-[ -n "${CONFIG}" ] && [ -n "${NJOBS}" ] || { sed -n '2,29p' "$0"; exit 2; }
+[ -n "${CONFIG}" ] && [ -n "${NJOBS}" ] || { sed -n '2,32p' "$0"; exit 2; }
 CONFIG=$(realpath "${CONFIG}")
 source "${CONFIG}"
 cd "${HERE}"
@@ -130,6 +131,13 @@ executable       = ${HERE}/job.sh
 arguments        = \$(chunk) ${OUT_DIR}
 accounting_group = group_eic
 request_memory   = ${MEM} MB
+# Memory escalation: a job killed for exceeding its memory goes back to the
+# queue with twice the request, up to ${MEM_MAX} MB (HTCondor
+# retry_request_memory; SDCC enforces hard cgroup limits). After 4 starts a
+# job is held instead of looping.
+retry_request_memory = min({RequestMemory * 2, ${MEM_MAX}})
+periodic_hold    = (NumJobStarts >= 4) && (JobStatus == 1)
+periodic_hold_reason = "held after 4 starts: memory retries up to ${MEM_MAX} MB exhausted, or repeated eviction"
 request_cpus     = 1
 request_disk     = 20 GB
 getenv           = False

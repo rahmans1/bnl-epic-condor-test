@@ -83,9 +83,16 @@ Delete `test-out/` once you're done with it; it is gitignored.
     tools/status.sh test-out
 
 Jobs often sit idle: `group_eic` is shared, and only slots with at least
-`request_memory` (6000 MB by default) match. `condor_q -better-analyze <cluster>.0`
-shows how many slots match. Idle is not an error. Don't change memory
-requests or remove jobs without asking.
+`request_memory` match (default 3500 MB for a plain gun, 6000 MB for the
+overlay and background-only runs). `condor_q -better-analyze <cluster>.0`
+shows how many slots match. Idle is not an error. Don't remove jobs without
+asking.
+
+Memory escalates automatically, so don't raise requests up front. Every
+`.sub` file has `retry_request_memory`: a job killed for exceeding its
+memory is requeued with twice the request, up to `-R` (default 12000 MB),
+and is held after 4 starts. For long queues, prefer more jobs with fewer
+events (`-e`) at a small `-m` over large requests.
 
 To wait for a cluster to finish without polling in a loop, run one
 background command: `until [ -z "$(condor_q <ids> -af ClusterId)" ]; do sleep 120; done; condor_history <ids> -af ClusterId ExitCode | sort | uniq -c`.
@@ -111,7 +118,7 @@ Expected values:
 - Exit codes: 82 gun file, 83 no geometry, 84/85 npsim/eicrecon gave no output, 86 merger missing, 87 wrong merged frame count, 89 copy-out (full table in README).
 - **Resubmit by rerunning the same submit command.** Chunks that already have a RECO file exit at once. To extend a run, use `-s <first new chunk> -n <count>`.
 - "was set up with X, not Y; use another -o": the run directory belongs to a different configuration. Use another `-o`; never edit `run.env` by hand.
-- Held jobs are usually over their memory request. Report them and suggest `condor_qedit <cluster> RequestMemory <MB>` plus `condor_release`, then wait for the user's OK.
+- **Held jobs:** look at `condor_q -hold <cluster>`. If the reason is the memory retry limit (held after 4 starts), the job needs more than the cap. Report it and suggest resubmitting that range with a higher `-R` or a smaller `-e`/`-f`; wait for the user's OK before changing or releasing anything.
 
 ## Gotchas found the hard way
 

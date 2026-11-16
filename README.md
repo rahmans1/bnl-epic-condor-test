@@ -201,6 +201,29 @@ A config is a sourced bash file. Keys:
 With Claude Code, just ask: *"check my jobs"* (see
 [Run it with Claude Code](#run-it-with-claude-code-recommended)).
 
+## Memory: small requests, automatic escalation
+
+Jobs ask for little memory so that more slots match, and they grow only
+when they need to:
+
+| Mode | Initial `request_memory` (`-m`) | Measured peak |
+|---|---|---|
+| Plain gun | 3500 MB | 2.6 GB (eicrecon; npsim 2.3 GB), almost all of it the geometry |
+| Overlay, background only | 6000 MB | 2.6 GB at 2 frames; stock TimeFrameBuilder grows about 11 MB per frame |
+
+SDCC enforces hard cgroup memory limits. Every `.sub` file sets HTCondor's
+`retry_request_memory = min({RequestMemory * 2, MEM_MAX})`, so a job killed
+for exceeding its request goes back to the queue with twice the request,
+up to `-R` (default 12000 MB). There's nothing to do by hand. After 4
+starts a job is held instead of looping (`periodic_hold`); then
+`condor_q -hold <cluster>` shows the reason. A held job either really needs
+more than the cap (resubmit that range with a higher `-R`, or fewer events
+per chunk with `-e`/`-f`) or keeps getting evicted.
+
+For a queued (idle) job, `condor_qedit <cluster> RequestMemory <MB>`
+changes the request in place. A running job keeps its slot; the new value
+applies from its next start.
+
 ## Output and resubmission
 
 Each run directory holds `run.env`, the `.sub` file, the Condor logs
@@ -219,7 +242,7 @@ size, image, merger, sources, steering). Use another `-o` for that.
 
 ## Background-only mode
 
-    ./submit.sh -c CONFIG -n CHUNKS [-f FRAMES] [-s FIRST] [-M hepmcmerger|timeframebuilder] [-m MB] [-F] [-H] [-X] [-d]
+    ./submit.sh -c CONFIG -n CHUNKS [-f FRAMES] [-s FIRST] [-M hepmcmerger|timeframebuilder] [-m MB] [-R MB] [-F] [-H] [-X] [-d]
 
 - **Merge:** the merger takes one signal and up to four backgrounds. The
   proton beam-gas row (status 6000) becomes the "signal" at its real rate.
@@ -240,7 +263,7 @@ size, image, merger, sources, steering). Use another `-o` for that.
 
 ## Gun mode
 
-    ./submit.sh -c configs/singles_*.env [-n CHUNKS] [-e EVENTS] [-p "PARTICLES"] [-s FIRST] [-m MB] [-F] [-d]
+    ./submit.sh -c configs/singles_*.env [-n CHUNKS] [-e EVENTS] [-p "PARTICLES"] [-s FIRST] [-m MB] [-R MB] [-F] [-d]
 
 - **Steering:** the swf-epicprod template, line for line (`evgen_generate.py`
   `gun_steering()`, angle-range branch, 5fddcb9). A `cos(theta)` gun between

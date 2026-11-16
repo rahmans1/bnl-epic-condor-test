@@ -40,7 +40,8 @@ descriptive name and edit only these keys:
 - `GUN_THETA_MIN`, `GUN_THETA_MAX`: **degrees**, detector frame (angle from the detector z axis), flat in cos(theta). Confirm the unit with the user if they don't give one: far-forward requests are often in mrad, and the gun can't take mrad as is.
 - `GUN_EVENTS`: events per particle.
 
-Leave the geometry alone unless the user asks: plain singles use **5x41**
+**Geometry: 5x41 is the default for singles; a 10 GeV geometry is used only
+when backgrounds are involved.** Leave it alone unless the user asks: plain singles use **5x41**
 (`EBEAM=5 PBEAM=41`), as in production. The overlay always uses the
 background config's beams (10x275 or 10x100), because the backgrounds only
 exist for those beams. Say so when you submit an overlay.

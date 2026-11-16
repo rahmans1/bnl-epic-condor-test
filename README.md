@@ -7,11 +7,18 @@ OSDF door, and outputs land on GPFS. The steps follow the epicprod payload
 
 There are three modes, and each one is picked by the config:
 
-| Mode | Config | Each event is |
-|---|---|---|
-| Background only | `configs/allbg_*.env` | one 2 µs frame of every beam background at its real rate, with no physics signal |
-| Particle gun | `configs/singles_*.env` (`MODE=gun`) | one gun particle, the swf-epicprod singles steering |
-| Gun + background overlay | a gun config with `-B configs/allbg_*.env` | one gun particle plus one frame of every background |
+| Mode | Config | Each event is | Geometry |
+|---|---|---|---|
+| Particle gun | `configs/singles_*.env` (`MODE=gun`) | one gun particle, the swf-epicprod singles steering | **5x41** (default) |
+| Gun + background overlay | a gun config with `-B configs/allbg_*.env` | one gun particle plus one frame of every background | the background config's: 10x275 or 10x100 |
+| Background only | `configs/allbg_*.env` | one 2 µs frame of every beam background at its real rate, with no physics signal | the background config's: 10x275 or 10x100 |
+
+> **Geometry: 5x41 is the default.** Singles always run on
+> `epic_craterlake_5x41.xml`, as in production. A 10 GeV geometry (10x275 or
+> 10x100) is used **only when beam backgrounds are involved**: the overlay
+> (`-B`) and background-only runs. The backgrounds exist only for those
+> beams, so in that case the geometry comes from the background config, and
+> the singles config's `EBEAM`/`PBEAM` are ignored.
 
 ## Run it with Claude Code (recommended)
 
@@ -59,7 +66,7 @@ read the scripts from where they sit and mount only `/gpfs02`:
     # particle gun: 50k each of pi+ and neutron, 20 GeV, 1-4 deg, 5x41
     ./submit.sh -c configs/singles_20GeV_1to4deg.env
 
-    # the same gun with the 10x275 backgrounds overlaid
+    # the same gun with the 10x275 backgrounds overlaid (runs on 10x275, not 5x41)
     ./submit.sh -c configs/singles_20GeV_1to4deg.env -B configs/allbg_10x275_gold10um.env
 
     # any mode: -d writes the run directory and .sub file without submitting
@@ -150,7 +157,7 @@ A config is a sourced bash file. Keys:
 | `CONTAINER` | all | Image for npsim and eicrecon (and the gun files). |
 | `HEPMCMERGER_CONTAINER`, `TFB_CONTAINER` | background, overlay | Merger images. SignalBackgroundMerger defaults to `CONTAINER`. |
 | `MERGER_PATH` | background, overlay | Directory put first on `PATH` for the merge step (a patched TimeFrameBuilder). |
-| `DETECTOR_VERSION`, `DETECTOR_CONFIG`, `EBEAM`, `PBEAM` | all | Geometry `DETECTOR_CONFIG_EBEAMxPBEAM.xml`. In overlay these come from the background config. |
+| `DETECTOR_VERSION`, `DETECTOR_CONFIG`, `EBEAM`, `PBEAM` | all | Geometry `DETECTOR_CONFIG_EBEAMxPBEAM.xml`. Singles configs: 5x41 (the default). Background configs: 10x275 / 10x100. The overlay takes the background config's beams. |
 | `INTEGRATION_WINDOW` | background, overlay | Frame length in ns (2000). |
 | `MODE=gun` | gun | Sends the config to `gun/submit_gun.sh`. |
 | `GUN_PARTICLES` | gun | Geant4 names, space separated (`pi+ neutron`). |
@@ -243,7 +250,7 @@ size, image, merger, sources, steering). Use another `-o` for that.
 - **Seeds:** as in run.sh, `(sha256(stem)[:7] * 10000 + chunk + 1) mod (2^31-1)`.
   Each particle and each chunk get their own stream, the same one production
   would draw for the same stem.
-- **Geometry:** `DETECTOR_CONFIG_EBEAMxPBEAM`. Singles use 5x41, as in production.
+- **Geometry:** `DETECTOR_CONFIG_EBEAMxPBEAM`, **5x41 by default** (`EBEAM=5 PBEAM=41` in the singles config), as in production.
 - **Chunks:** `GUN_EVENTS` per particle in chunks of `EVENTS_PER_CHUNK`
   (2000, production's gun `events_per_job`).
 
@@ -270,8 +277,10 @@ size, image, merger, sources, steering). Use another `-o` for that.
   so the default merger is `timeframebuilder`. It uses `tfb-patched/build`
   if that exists (below) or `MERGER_PATH` if set. `-M hepmcmerger` works
   only with four or fewer sources.
-- **Geometry:** the background config's beams (10x275), because the
-  backgrounds are beam-specific. 5x41 has no background set.
+- **Geometry:** the only case where a gun runs on a 10 GeV geometry. It
+  takes the background config's beams (10x275 or 10x100) and overrides the
+  singles config's 5x41, because the backgrounds are beam-specific and 5x41
+  has no background set.
 - **Seeds:** the gun's per-stem seed drives the gun kinematics, the
   background skips and Geant4.
 - **Cost:** each frame carries about 26k SR photons, so a frame costs far

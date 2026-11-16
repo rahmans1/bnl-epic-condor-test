@@ -34,6 +34,107 @@ read the scripts from where they sit and mount only `/gpfs02`:
 background-only mode. `gun/submit_gun.sh` with no arguments prints the gun
 options.
 
+## Workflow
+
+### Submission
+
+`submit.sh` reads the config, picks the mode, and writes one run directory
+per sample: one per particle in the gun modes. The run directory's
+`run.env` is the only input the job reads besides the scripts, so a chunk
+can be rerun from it at any time.
+
+```mermaid
+flowchart TD
+    A["./submit.sh -c CONFIG [options]"] --> B{"config has MODE=gun?"}
+    B -- no --> C["submit.sh<br/>background only"]
+    B -- yes --> D["gun/submit_gun.sh"]
+    D --> E{"-B BG_CONFIG given?"}
+    E -- no --> F["plain gun<br/>one run dir per particle<br/>out/SINGLE/particle/energy/variant"]
+    E -- yes --> G["overlay<br/>one run dir per particle<br/>out/SINGLE_BG/bg_sample/merger/particle/energy/variant"]
+    C --> H["run dir<br/>out/sample/merger"]
+    F --> I["run.env + sample.steer + .sub"]
+    G --> J["run.env + backgrounds.json + .sub"]
+    H --> K["run.env + backgrounds.json + .sub"]
+    I --> L["condor_submit<br/>one job per chunk, group_eic"]
+    J --> L
+    K --> L
+```
+
+### One job (one chunk)
+
+Every step runs in an `apptainer exec --cleanenv` container on the worker's
+scratch disk. Only the outputs are copied back to the run directory. A
+chunk whose RECO file already exists exits at the first step.
+
+```mermaid
+flowchart LR
+    subgraph BG["Background only: job.sh"]
+        direction TB
+        b1["merge<br/>merger image<br/>beam-gas row as signal + 4 backgrounds<br/>frame-count check"] --> b2["simreco<br/>CONTAINER<br/>npsim on merged HepMC3<br/>eicrecon"]
+    end
+    subgraph GUN["Plain gun: gun/gun_job.sh"]
+        direction TB
+        g1["gun_payload.sh<br/>CONTAINER, 5x41 geometry<br/>npsim --enableGun --steeringFile"] --> g2["eicrecon"]
+    end
+    subgraph OV["Overlay: gun/gun_job.sh, GUN_OVERLAY=1"]
+        direction TB
+        o1["gunevgen<br/>CONTAINER<br/>gun_hepmc.py writes gun HepMC3"] --> o2["merge<br/>TFB image<br/>gun as signal, 1 per frame<br/>+ all backgrounds"]
+        o2 --> o3["simreco<br/>CONTAINER, 10x275 geometry<br/>npsim + eicrecon"]
+    end
+    BG --> OUT["copy out to the run dir<br/>RECO/ always<br/>FULL/ with -F, HEPMC/ with -H<br/>LOG/chunk.log.tar.gz: stage logs + prmon"]
+    GUN --> OUT
+    OV --> OUT
+```
+
+### Inputs and seeds
+
+```mermaid
+flowchart LR
+    S["config_data/*.json<br/>background sources: file, rate in kHz, status"] -->|"streamed from JLab OSDF"| M["merger"]
+    T["gun/steering.sh<br/>swf-epicprod template"] --> N1["npsim gun"]
+    T -.->|"same kinematics, in distribution"| H["gun/gun_hepmc.py"]
+    H --> M
+    R["seed<br/>background only: chunk + 1<br/>gun modes: sha256(stem)[:7] x 10000 + chunk + 1"] --> M
+    R --> N1
+    R --> H
+    M --> N2["npsim on merged frames"]
+```
+
+The background skips are rate-scaled and seed-mixed, as in run.sh, so
+each chunk reads a different slice of each background file.
+
+## Configuration
+
+A config is a sourced bash file. Keys:
+
+| Key | Modes | Meaning |
+|---|---|---|
+| `SAMPLE` | background | Sample name; the run directory is `out/SAMPLE/merger`. |
+| `SOURCES_JSON` | background, overlay (`-B`) | Background sources: `file`, `freq` (kHz), `status` offset. |
+| `SIGNAL_ROW_STATUS`, `SIGNAL_NEVENTS` | background | The source row used as the merger's "signal", and its file's event count. |
+| `CONTAINER` | all | Image for npsim and eicrecon (and the gun files). |
+| `HEPMCMERGER_CONTAINER`, `TFB_CONTAINER` | background, overlay | Merger images. SignalBackgroundMerger defaults to `CONTAINER`. |
+| `MERGER_PATH` | background, overlay | Directory put first on `PATH` for the merge step (a patched TimeFrameBuilder). |
+| `DETECTOR_VERSION`, `DETECTOR_CONFIG`, `EBEAM`, `PBEAM` | all | Geometry `DETECTOR_CONFIG_EBEAMxPBEAM.xml`. In overlay these come from the background config. |
+| `INTEGRATION_WINDOW` | background, overlay | Frame length in ns (2000). |
+| `MODE=gun` | gun | Sends the config to `gun/submit_gun.sh`. |
+| `GUN_PARTICLES` | gun | Geant4 names, space separated (`pi+ neutron`). |
+| `GUN_ENERGY` | gun | Total energy with unit (`20*GeV`). |
+| `GUN_THETA_MIN`, `GUN_THETA_MAX` | gun | Polar range in degrees, detector frame; `cos(theta)` flat. |
+| `GUN_EVENTS` | gun | Events per particle; sets the default chunk count. |
+| `EVENTS_PER_CHUNK`, `OVERLAY_EVENTS_PER_CHUNK` | gun | Events per job for the plain gun (2000) and the overlay (100). |
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| 82 | Overlay: the gun HepMC3 file was not written. |
+| 83 | No geometry file for the requested beams. |
+| 84 / 85 | Plain gun: npsim / eicrecon produced no output. |
+| 86 | The merger binary is missing from the merger image. |
+| 87 | The merged file is missing or has the wrong frame count. |
+| 89 | Copying the outputs back to GPFS failed. |
+
 ## Layout
 
 | Path | What it is |

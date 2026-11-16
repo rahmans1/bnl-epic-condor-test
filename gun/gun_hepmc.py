@@ -2,7 +2,7 @@
 """Write a particle gun as HepMC3 events, so the merger can overlay it.
 
     gun_hepmc.py --particle pi+ --energy-gev 20 --theta-min 1 --theta-max 4 \\
-                 --events N --seed S --output FILE.hepmc3
+                 --events N --seed S --ebeam 10 --pbeam 275 --output FILE.hepmc3
 
 The template steering (gun/steering.sh) gives npsim's DDG4 gun. This script
 draws the same kinematics: one particle per event from the origin, at a
@@ -11,14 +11,18 @@ between theta_min and theta_max (degrees, detector frame), phi flat in
 [0, 2pi). The DDG4 gun's own random stream can't be written out, so the
 kinematics match in distribution, not event for event.
 
-Each event holds one particle of status 1 with no explicit vertex, so it
-starts at the event origin (0,0,0,0). An explicit vertex with no incoming
-particle is malformed HepMC3 ASCII ("not enough implicit vertices"). The merger adds the signal status offset (0 here), and npsim tracks
+Each event has one vertex at (0,0,0,0). Its incoming particles are the
+beams, status 4 (an electron of --ebeam GeV along -z and a proton of
+--pbeam GeV along +z, no crossing angle), and its one outgoing particle is
+the gun particle, status 1. The vertex is required: TimeFrameBuilder drops a
+particle that has no production vertex, and HepMC3 ASCII rejects a vertex
+with no incoming particle. npsim does not track status 4. The merger adds the signal status offset (0 here), and npsim tracks
 status 1 as stable.
 
-The output is HepMC3 ASCII, which both mergers read (HepMC3 deduces the
-format). pyHepMC3's ROOT-tree writer segfaults under cling in eic_xl
-26.07.3, so this script imports no ROOT.
+The output is HepMC3 ASCII: pyHepMC3's ROOT-tree writer segfaults under
+cling in eic_xl 26.07.3, so this script imports no ROOT. The overlay step
+converts the file to the .hepmc3.tree.root that TimeFrameBuilder requires
+(gun/hepmc3_to_tree.cc).
 """
 import argparse
 import math
@@ -45,6 +49,8 @@ def main():
     ap.add_argument('--events', type=int, required=True)
     ap.add_argument('--seed', type=int, required=True)
     ap.add_argument('--output', required=True)
+    ap.add_argument('--ebeam', type=float, required=True, help='electron beam GeV (status-4 incoming)')
+    ap.add_argument('--pbeam', type=float, required=True, help='proton beam GeV (status-4 incoming)')
     a = ap.parse_args()
 
     if a.particle not in G4_PDG:
@@ -68,7 +74,17 @@ def main():
         part = hm.GenParticle(hm.FourVector(pmag * st * math.cos(phi), pmag * st * math.sin(phi),
                                             pmag * ct, a.energy_gev), pdg, 1)
         part.set_generated_mass(mass)
-        ev.add_particle(part)
+        me, mp = 0.51099895e-3, 0.93827208816
+        pe, pp = math.sqrt(max(0.0, a.ebeam ** 2 - me ** 2)), math.sqrt(max(0.0, a.pbeam ** 2 - mp ** 2))
+        ebeam = hm.GenParticle(hm.FourVector(0.0, 0.0, -pe, a.ebeam), 11, 4)
+        pbeam = hm.GenParticle(hm.FourVector(0.0, 0.0, pp, a.pbeam), 2212, 4)
+        ebeam.set_generated_mass(me)
+        pbeam.set_generated_mass(mp)
+        vtx = hm.GenVertex(hm.FourVector(0.0, 0.0, 0.0, 0.0))
+        vtx.add_particle_in(ebeam)
+        vtx.add_particle_in(pbeam)
+        vtx.add_particle_out(part)
+        ev.add_vertex(vtx)
         writer.write_event(ev)
     writer.close()
     print(f'gun_hepmc: {a.events} {a.particle} (pdg {pdg}, m {mass:.6g} GeV, |p| {pmag:.6g} GeV), '

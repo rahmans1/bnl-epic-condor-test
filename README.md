@@ -78,7 +78,7 @@ flowchart LR
     end
     subgraph OV["Overlay: gun/gun_job.sh, GUN_OVERLAY=1"]
         direction TB
-        o1["gunevgen<br/>CONTAINER<br/>gun_hepmc.py writes gun HepMC3"] --> o2["merge<br/>TFB image<br/>gun as signal, 1 per frame<br/>+ all backgrounds"]
+        o1["gunevgen<br/>CONTAINER<br/>gun_hepmc.py writes gun HepMC3<br/>hepmc3_to_tree converts to a ROOT tree"] --> o2["merge<br/>TFB image<br/>gun as signal, 1 per frame<br/>+ all backgrounds"]
         o2 --> o3["simreco<br/>CONTAINER, 10x275 geometry<br/>npsim + eicrecon"]
     end
     BG --> OUT["copy out to the run dir<br/>RECO/ always<br/>FULL/ with -F, HEPMC/ with -H<br/>LOG/chunk.log.tar.gz: stage logs + prmon"]
@@ -141,7 +141,7 @@ A config is a sourced bash file. Keys:
 |---|---|
 | `submit.sh` | Entry point. Writes the run directory and the `.sub` file, then calls `condor_submit`. A `MODE=gun` config is handed to `gun/submit_gun.sh`. |
 | `job.sh`, `bgmix_payload.sh` | Background-only Condor executable and its steps: `merge`, `simreco`, `extract` (benchmark), and `gunevgen` (overlay). |
-| `gun/` | Gun mode. `submit_gun.sh`, `gun_job.sh`, `gun_payload.sh`, `steering.sh` (the swf-epicprod steering template), and `gun_hepmc.py` (the gun as HepMC3, for the overlay). |
+| `gun/` | Gun mode. `submit_gun.sh`, `gun_job.sh`, `gun_payload.sh`, `steering.sh` (the swf-epicprod steering template), `gun_hepmc.py` (the gun as HepMC3, for the overlay), and `hepmc3_to_tree.cc` (ASCII to ROOT tree). |
 | `mergers/` | The production merger adapters, copied unchanged from swf-epicprod `swf_epicprod/payload/mergers/` (3b8cef0). |
 | `configs/` | One sample per file. |
 | `config_data/` | Campaign background-source JSONs, from eicweb `EIC/campaigns/datasets`. |
@@ -204,10 +204,19 @@ size, image, merger, sources, steering). Use another `-o` for that.
 
     ./submit.sh -c configs/singles_*.env -B configs/allbg_*.env [-M timeframebuilder|hepmcmerger] [-e FRAMES] [-H] ...
 
-- **Gun events:** `gun/gun_hepmc.py` writes the chunk's gun particles as
-  HepMC3 ASCII, with the template's kinematics. The kinematics match the
-  npsim gun in distribution but not event for event. The file is ASCII
-  because pyHepMC3's ROOT-tree writer segfaults in 26.07.3.
+- **Gun events:** `gun/gun_hepmc.py` writes the chunk's gun particles with
+  the template's kinematics. They match the npsim gun in distribution, but
+  not event for event. Each event has one vertex at the origin: the
+  incoming beams (status 4, the background config's energies, no crossing
+  angle) and the outgoing gun particle (status 1). TimeFrameBuilder drops
+  a particle that has no vertex.
+- **File format:** the script writes HepMC3 ASCII, because pyHepMC3's
+  ROOT-tree writer segfaults in 26.07.3. TimeFrameBuilder reads only
+  `.hepmc3.tree.root`, so `gun/hepmc3_to_tree.cc` (compiled in the job in
+  about 3 s) converts the file.
+- **Gun time:** TimeFrameBuilder places the gun at a random time within
+  the 2 µs frame, the same way it places the backgrounds, so the
+  particle's `MCParticles.time` is not 0.
 - **Merge:** the gun is the merger's signal at frequency 0, so exactly one
   per frame. Every source of the background config is a background. The
   10x275 config has five sources, more than SignalBackgroundMerger takes,
@@ -271,7 +280,14 @@ trusting the version string.
   - Peak PSS: eicrecon 2.6 GB, npsim 2.3 GB, merger 1.1 GB.
   - SYNRAD primaries per frame: 26,632 / 26,613 with hepmcmerger and 26,419 / 26,814 with TFB, against about 26,554 expected.
   - A rerun reproduced hepmcmerger chunk 1 exactly, so the seeds are deterministic.
-- **Gun and overlay:** test runs pending.
+- **Plain gun, 2026-11-16.** 5x41, 1 chunk × 3 pi+ events, run with
+  `gun/gun_job.sh` on eicsub01. 3 events of PDG 211 with θ 3.18°, 1.76° and
+  3.44° and E = 20.000 GeV. npsim took 2.2 min and eicrecon 1.0 min.
+- **Overlay, 2026-11-16.** 10x275, TimeFrameBuilder 0.9.2 stock, 1 chunk ×
+  2 neutron frames. Each frame had exactly one status-1 neutron (θ 1.96° and
+  3.98°, |p| 19.978 GeV, t 653 ns and 1512 ns), its 2 status-4 beams,
+  about 26.4k SR photons (2001) and 12-16 brems particles (3001). The merge
+  took 12 s, npsim 2.1 min and eicrecon 0.8 min.
 
 ## Caveats
 

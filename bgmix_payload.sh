@@ -46,7 +46,7 @@ LOG_TEMP=${WORK}/LOG; FULL_TEMP=${WORK}/FULL; RECO_TEMP=${WORK}/RECO
 mkdir -p "${LOG_TEMP}" "${FULL_TEMP}" "${RECO_TEMP}"
 STAGES_LOG=${LOG_TEMP}/${TASKNAME}.stages.log
 MERGED=${FULL_TEMP}/${TASKNAME}.hepmc3.tree.root
-[ "${GUN_OVERLAY:-0}" = 1 ] && SIGNAL_FILE=${WORK}/${TASKNAME}.gun.hepmc3
+[ "${GUN_OVERLAY:-0}" = 1 ] && SIGNAL_FILE=${WORK}/${TASKNAME}.gun.hepmc3.tree.root
 cd "${WORK}"
 
 CURRENT_STAGE=""
@@ -182,14 +182,23 @@ simreco() {
   stage reconstruction ok
 }
 
-# Gun overlay: the chunk's gun events, one per frame, as HepMC3 ASCII
-# (gun/gun_hepmc.py; the template's kinematics).
+# Gun overlay: the chunk's gun events, one per frame (gun/gun_hepmc.py, the
+# template's kinematics). They are written as HepMC3 ASCII, then converted to
+# a ROOT tree, the only format TimeFrameBuilder reads, by gun/hepmc3_to_tree.cc,
+# compiled here against this image's HepMC3. (pyHepMC3's tree writer segfaults.)
 gunevgen() {
+  local ascii=${WORK}/${TASKNAME}.gun.hepmc3
   stage evgen start "${FRAMES} ${GUN_PARTICLE} at ${GUN_ENERGY_GEV} GeV, ${GUN_THETA_MIN}-${GUN_THETA_MAX} deg, seed ${SEED}"
-  python3 "${HERE}/gun/gun_hepmc.py" --particle "${GUN_PARTICLE}" --energy-gev "${GUN_ENERGY_GEV}" \
-    --theta-min "${GUN_THETA_MIN}" --theta-max "${GUN_THETA_MAX}" \
-    --events "${FRAMES}" --seed "${SEED}" --output "${SIGNAL_FILE}" \
-    2>&1 | tee "${LOG_TEMP}/${TASKNAME}.gunevgen.log"
+  {
+    python3 "${HERE}/gun/gun_hepmc.py" --particle "${GUN_PARTICLE}" --energy-gev "${GUN_ENERGY_GEV}" \
+      --theta-min "${GUN_THETA_MIN}" --theta-max "${GUN_THETA_MAX}" \
+      --events "${FRAMES}" --seed "${SEED}" --ebeam "${EBEAM}" --pbeam "${PBEAM}" --output "${ascii}"
+    local prefix; prefix=$(HepMC3-config --prefix)
+    g++ -O2 -o "${WORK}/hepmc3_to_tree" "${HERE}/gun/hepmc3_to_tree.cc" \
+      -I"${prefix}/include" -L"${prefix}/lib" -lHepMC3 -lHepMC3rootIO \
+      $(root-config --cflags --libs) -Wl,-rpath,"${prefix}/lib"
+    echo "converted $("${WORK}/hepmc3_to_tree" "${ascii}" "${SIGNAL_FILE}") events to ${SIGNAL_FILE}"
+  } 2>&1 | tee "${LOG_TEMP}/${TASKNAME}.gunevgen.log"
   [ -s "${SIGNAL_FILE}" ] || { stage evgen fail "no gun file"; exit 82; }
   stage evgen ok
 }

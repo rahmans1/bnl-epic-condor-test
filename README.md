@@ -13,7 +13,42 @@ There are three modes, and each one is picked by the config:
 | Particle gun | `configs/singles_*.env` (`MODE=gun`) | one gun particle, the swf-epicprod singles steering |
 | Gun + background overlay | a gun config with `-B configs/allbg_*.env` | one gun particle plus one frame of every background |
 
-## Quick start
+## Run it with Claude Code (recommended)
+
+The repo includes a Claude Code skill,
+[`epic-condor-run`](.claude/skills/epic-condor-run/SKILL.md), that knows
+how to run everything here. You don't need to learn the scripts first:
+
+    git clone https://github.com/rahmans1/bnl-epic-condor-test.git
+    cd bnl-epic-condor-test            # on GPFS, from an SDCC submit node
+    claude
+
+Then say what you want in plain words:
+
+- *"Run 50k pi+ and 50k neutrons at 20 GeV, theta 1 to 4 degrees."*
+- *"Same guns, but overlay the 10x275 backgrounds."*
+- *"Make a new config for 10 GeV electrons at 3 to 50 degrees and test it."*
+- *"How are my jobs doing? Resubmit any failed chunks."*
+- *"Check the RECO output: is the gun particle there with the right angles?"*
+
+Claude picks the mode and config, does a dry run, tests one small chunk
+on the submit node, and only then submits the full run. After that it
+monitors the jobs, checks the outputs and resubmits failures. It asks you
+before changing physics settings, memory requests or removing jobs.
+
+**Use it to learn the commands.** Every step is an ordinary bash command
+that Claude shows you before running it, so you can watch, copy and reuse
+them without Claude. Ask for that directly:
+
+- *"Show me the commands for a 20 GeV pi+ gun run, step by step, and explain each flag. Don't run anything."*
+- *"Write a shell script I can rerun myself for this configuration."*
+- *"What does `-B` change in the job, and which files does it write?"*
+
+The skill file itself is a short, readable runbook: mode choice, dry run →
+local test → full run, monitoring, output checks and failure handling. The
+sections below are the full reference.
+
+## Quick start (by hand)
 
 From an SDCC submit node (e.g. `eicsub01`), with the repo on GPFS. The jobs
 read the scripts from where they sit and mount only `/gpfs02`:
@@ -156,9 +191,8 @@ A config is a sourced bash file. Keys:
       /cvmfs/singularity.opensciencegrid.org/eicweb/eic_xl:26.07.3-stable \
       python3 tools/check_reco.py <RECO file> [max_events]   # gun PDG/theta/|p|/time and status counts per event
 
-With Claude Code, open the repo and ask it to run or check jobs: the
-`epic-condor-run` skill (`.claude/skills/`) walks through dry run, a small
-local test, the full submission, monitoring and resubmission.
+With Claude Code, just ask: *"check my jobs"* (see
+[Run it with Claude Code](#run-it-with-claude-code-recommended)).
 
 ## Output and resubmission
 

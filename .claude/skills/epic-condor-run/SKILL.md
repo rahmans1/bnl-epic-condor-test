@@ -26,11 +26,11 @@ they can reuse it.
 
 ## 1. Pick the mode and the config
 
-| The user wants | Mode | Config |
-|---|---|---|
-| Beam backgrounds only, no physics | background only | `configs/allbg_<beams>_gold10um.env` |
-| Single particles (gun) | plain gun | `configs/singles_*.env` (`MODE=gun`) |
-| Single particles on top of the beam backgrounds | overlay | a gun config plus `-B configs/allbg_*.env` |
+| The user wants | Mode | Config | Geometry |
+|---|---|---|---|
+| Single particles (gun) | plain gun | `configs/singles_*.env` (`MODE=gun`) | **5x41** (default) |
+| Single particles on top of the beam backgrounds | overlay | a gun config plus `-B configs/allbg_*.env` | the background config's (10x275 / 10x100) |
+| Beam backgrounds only, no physics | background only | `configs/allbg_<beams>_gold10um.env` | the background config's (10x275 / 10x100) |
 
 For a new gun configuration, copy `configs/singles_20GeV_1to4deg.env` to a
 descriptive name and edit only these keys:
@@ -42,9 +42,14 @@ descriptive name and edit only these keys:
 
 **Geometry: 5x41 is the default for singles; a 10 GeV geometry is used only
 when backgrounds are involved.** Leave it alone unless the user asks: plain singles use **5x41**
-(`EBEAM=5 PBEAM=41`), as in production. The overlay always uses the
-background config's beams (10x275 or 10x100), because the backgrounds only
-exist for those beams. Say so when you submit an overlay.
+(`EBEAM=5 PBEAM=41`), as in production, even when the user doesn't mention
+geometry. The overlay and background-only runs always use the background
+config's beams (10x275 or 10x100), because the backgrounds only exist for
+those beams; in the overlay the singles config's `EBEAM`/`PBEAM` are
+ignored. Say so when you submit an overlay. If a user asks for singles at a
+10 GeV geometry without backgrounds, or for an overlay at 5x41, point out
+that this differs from the default (no 5x41 background set exists) and ask
+before going ahead.
 
 Don't invent new physics settings (distributions, vertex smearing, crossing
 angle). The steering is the production template, `gun/steering.sh`. Ask the
@@ -52,7 +57,7 @@ user before changing it.
 
 ## 2. Always dry-run, then test small, before the full run
 
-1. **Dry run** (`-d`): writes the run directories and `.sub` files and submits nothing. Check the printed `geometry`, `chunks` and `output` lines against the request.
+1. **Dry run** (`-d`): writes the run directories and `.sub` files and submits nothing. Check the printed `geometry`, `chunks` and `output` lines against the request. The `geometry` line must say `epic_craterlake_5x41.xml` for a plain gun and the background config's beams (e.g. `epic_craterlake_10x275.xml`) for an overlay.
 
        ./submit.sh -c configs/<gun>.env -d
        ./submit.sh -c configs/<gun>.env -B configs/allbg_10x275_gold10um.env -d

@@ -1,6 +1,6 @@
 ---
 name: epic-condor-run
-description: Run, test, monitor and check ePIC simulation jobs on BNL SDCC HTCondor with this repo. Covers background-only mixed frames, particle-gun singles (any particle, energy, theta range), and guns overlaid on beam backgrounds. Use when someone asks to run or submit singles, a particle gun, backgrounds, an overlay, or a new angular or energy configuration; to check job status or outputs; or to resubmit failed chunks.
+description: Run, test, monitor and check ePIC simulation jobs on BNL SDCC HTCondor with this repo. Covers background-only mixed frames, particle-gun singles (any particle, energy, theta range), and guns overlaid on beam backgrounds. Use when someone asks to run or submit singles, a particle gun, backgrounds, an overlay, or a new angular or energy configuration; to check job status or outputs; or to resubmit failed chunks. Also use it when someone wants to learn the commands: show or explain them, or write a reusable script, without running anything.
 ---
 
 # Running ePIC jobs on SDCC Condor with this repo
@@ -10,6 +10,19 @@ there, on an SDCC submit node (e.g. `eicsub01`), with the repo on GPFS: the
 jobs read the scripts in place and mount only `/gpfs02` and `/gpfs/mnt/gpfs02`.
 `README.md` is the full reference (modes, workflow diagrams, config keys,
 exit codes). Read it when something here is not enough.
+
+## Teaching mode: when the user wants to learn the commands
+
+Many users want to run this themselves later. When they ask to be shown,
+taught, or given the commands or a script, or say "don't run anything":
+
+- **Don't execute anything:** no dry runs, no submissions. Write the exact commands in the order of sections 1-5 below (config edits, dry run, local test, full run, monitoring, output check), each with a one-line comment on what it does and what output to look for.
+- **Explain the flags they'll use** (`-c -B -p -e -n -s -o -d -F -H -m`), and where each result lands on disk.
+- **Use their real values:** particle, energy, angles, config file name, absolute paths. Don't use placeholders where you know the value.
+- **Scripts:** if they ask for one, write it in the repo root (e.g. `run_<name>.sh`) with `set -euo pipefail`, the dry run first, and a comment block at the top. Don't run it unless they ask.
+
+When you do run commands for them, show each command before running it, so
+they can reuse it.
 
 ## 1. Pick the mode and the config
 

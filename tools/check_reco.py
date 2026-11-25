@@ -5,7 +5,7 @@ status (2001 SYNRAD, 3001 brems, 4001 Coulomb, 5001 Touschek, 6001 proton
 beam-gas, 4 beams). Run it inside the image, e.g.
 
   apptainer exec --cleanenv -B /gpfs02,/gpfs/mnt/gpfs02 \\
-    /cvmfs/singularity.opensciencegrid.org/eicweb/eic_xl:26.07.3-stable \\
+    /cvmfs/singularity.opensciencegrid.org/eicweb/eic_xl:26.11.0-stable \\
     python3 tools/check_reco.py out/SINGLE/pi+/20GeV/1to4deg/RECO/<file>.root [max_events]
 """
 import collections

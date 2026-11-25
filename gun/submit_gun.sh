@@ -11,7 +11,8 @@
 #   -p LIST   only these particles, space separated   [GUN_PARTICLES from config]
 #   -B FILE   overlay the beam backgrounds of this background config
 #             (configs/allbg_*.env): one gun particle per 2 us frame
-#   -M NAME   overlay merger: timeframebuilder or hepmcmerger  [timeframebuilder]
+#   -M NAME   overlay merger: hepmcmerger or timeframebuilder  [hepmcmerger]
+#   -C REL    eic_xl release for every step, e.g. 26.10.0  [the config's CONTAINER]
 #   -o DIR    output base                                         [./out]   
 #   -m MB     initial request_memory              [plain gun 3500, overlay 6000]
 #   -R MB     memory cap for automatic retries (x2 per OOM)      [12000]
@@ -30,8 +31,8 @@
 # is the background config's beams (its backgrounds are beam-specific), not
 # the gun config's. Background-only chunks reserve one source as the merger's
 # "signal"; overlay chunks don't, so all of them are backgrounds.
-# SignalBackgroundMerger takes at most four, so with five sources only
-# timeframebuilder runs. It uses the patched build in tfb-patched/build
+# The default overlay merger is hepmcmerger (as run.sh). -M timeframebuilder
+# switches to TimeFrameBuilder, using the patched build in tfb-patched/build
 # (its memory fix, README) unless MERGER_PATH is set.
 #
 # A run directory holds run.env, the steering (or backgrounds.json), the
@@ -43,19 +44,28 @@ HERE=$(dirname "$(realpath "$0")")
 TOP=$(dirname "${HERE}")
 
 CONFIG="" NJOBS="" FIRST=0 OUT_BASE=${TOP}/out MEM="" MEM_MAX=12000 KEEP_FULL=0 KEEP_MERGED=0 DRY=0
-EPC="" PARTS="" BGCONFIG="" MERGER=timeframebuilder
-while getopts "c:n:s:e:p:B:M:o:m:R:FHd" opt; do
+EPC="" PARTS="" BGCONFIG="" MERGER=hepmcmerger RELEASE="" OUT_SET=0
+while getopts "c:n:s:e:p:B:M:C:o:m:R:FHd" opt; do
   case $opt in
     c) CONFIG=$OPTARG ;; n) NJOBS=$OPTARG ;; s) FIRST=$OPTARG ;; e) EPC=$OPTARG ;;
     p) PARTS=$OPTARG ;; B) BGCONFIG=$OPTARG ;; M) MERGER=$OPTARG ;;
-    o) OUT_BASE=$OPTARG ;; m) MEM=$OPTARG ;; R) MEM_MAX=$OPTARG ;; F) KEEP_FULL=1 ;; H) KEEP_MERGED=1 ;; d) DRY=1 ;;
-    *) sed -n '2,40p' "$0"; exit 2 ;;
+    C) RELEASE=$OPTARG ;; o) OUT_BASE=$OPTARG; OUT_SET=1 ;; m) MEM=$OPTARG ;; R) MEM_MAX=$OPTARG ;; F) KEEP_FULL=1 ;; H) KEEP_MERGED=1 ;; d) DRY=1 ;;
+    *) sed -n '2,41p' "$0"; exit 2 ;;
   esac
 done
-[ -n "${CONFIG}" ] || { sed -n '2,40p' "$0"; exit 2; }
+[ -n "${CONFIG}" ] || { sed -n '2,41p' "$0"; exit 2; }
 CONFIG=$(realpath "${CONFIG}")
 source "${CONFIG}"
 [ "${MODE:-}" = gun ] || { echo "${CONFIG} does not set MODE=gun"; exit 2; }
+# -C RELEASE: run every step in that eic_xl release instead of the config's
+# (tools/releases.sh lists them); the detector release follows it. Without
+# -o such a run goes under out/release-<RELEASE>/, apart from the default's.
+if [ -n "${RELEASE}" ]; then
+  CONTAINER=/cvmfs/singularity.opensciencegrid.org/eicweb/eic_xl:${RELEASE}-stable
+  DETECTOR_VERSION=${RELEASE}
+  [ -d "${CONTAINER}" ] || { echo "no eic_xl release ${RELEASE} on CVMFS; tools/releases.sh lists the ones there"; exit 1; }
+  [ "${OUT_SET}" = 1 ] || OUT_BASE=${OUT_BASE}/release-${RELEASE}
+fi
 PARTS=${PARTS:-${GUN_PARTICLES}}
 [ -d "${CONTAINER}" ] || [ -f "${CONTAINER}" ] || { echo "no container ${CONTAINER}"; exit 1; }
 ENERGY_LABEL=${GUN_ENERGY//\*/}           # 20*GeV -> 20GeV
@@ -71,20 +81,22 @@ if [ -n "${BGCONFIG}" ]; then
   [ -f "${SOURCES}" ] || { echo "no sources file ${SOURCES} (from ${BGCONFIG})"; exit 1; }
   EBEAM=$(bg EBEAM) PBEAM=$(bg PBEAM) DETECTOR_CONFIG=$(bg DETECTOR_CONFIG)
   INTEGRATION_WINDOW=$(bg INTEGRATION_WINDOW)
-  NBG=$(jq length "${SOURCES}")
   case "${MERGER}" in
     timeframebuilder)
-      MERGER_CONTAINER=$(bg TFB_CONTAINER)
       MERGER_PATH=${MERGER_PATH:-$(bg MERGER_PATH)}
-      if [ -z "${MERGER_PATH}" ] && [ -x "${TOP}/tfb-patched/build/timeframe_builder" ]; then
+      if [ -z "${MERGER_PATH}" ] && [ -z "${RELEASE}" ] && [ -x "${TOP}/tfb-patched/build/timeframe_builder" ]; then   # built for the default image only
         MERGER_PATH=$(realpath "${TOP}/tfb-patched/build")
       fi ;;
     hepmcmerger)
-      [ "${NBG}" -le 4 ] || { echo "SignalBackgroundMerger takes at most 4 backgrounds; ${BGCONFIG} has ${NBG} sources. Use -M timeframebuilder."; exit 1; }
-      HB=$(bg HEPMCMERGER_CONTAINER); MERGER_CONTAINER=${HB:-${CONTAINER}}; MERGER_PATH=${MERGER_PATH:-} ;;
+      MERGER_PATH=${MERGER_PATH:-} ;;
     *) echo "unknown merger ${MERGER}"; exit 2 ;;
   esac
-  [ -n "${MERGER_CONTAINER}" ] || { echo "${BGCONFIG} names no image for ${MERGER}"; exit 1; }
+  # One image for every step: the merger runs in the gun config's CONTAINER.
+  MERGER_CONTAINER=${CONTAINER}
+# TimeFrameBuilder is only in eic_xl 26.08.0 and later.
+if [ "${MERGER}" = timeframebuilder ] && [ -z "${MERGER_PATH:-}" ] && ! [ -L "${CONTAINER}/opt/local/bin/timeframe_builder" ] && ! [ -e "${CONTAINER}/opt/local/bin/timeframe_builder" ]; then
+  echo "$(basename "${CONTAINER}") has no timeframe_builder; pick a release that does (tools/releases.sh) or use hepmcmerger"; exit 1
+fi
   EVENTS_PER_CHUNK=${EPC:-${OVERLAY_EVENTS_PER_CHUNK:-100}}
   MEM=${MEM:-6000}
 else

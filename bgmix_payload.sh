@@ -5,10 +5,8 @@
 #   bgmix_payload.sh simreco <chunk> <run_dir> <work_dir>   (sim/reco container)
 #   bgmix_payload.sh gunevgen <chunk> <run_dir> <work_dir>  (gun overlay: the signal)
 #
-# job.sh runs the two steps, each in its own container, on one scratch
-# directory (work_dir), and copies the outputs out. The merger can then come
-# from a newer image (TimeFrameBuilder is in eic_xl 26.08.0 and later) while
-# npsim and eicrecon stay on the campaign release in both modes.
+# job.sh runs the steps on one scratch directory (work_dir), all in the
+# config's one image (the latest eic_xl release), and copies the outputs out.
 #
 # Modelled on the epicprod payload (swf-epicprod/swf_epicprod/payload/run.sh):
 # the merger runs through the production adapters, copied unchanged into
@@ -135,17 +133,31 @@ print(t.GetEntries() if t else "")' "${MERGED}" 2>/dev/null | tail -1) || MERGED
 }
 
 simreco() {
-  [ -s "${MERGED}" ] || { echo "ERROR: no merged file ${MERGED}"; exit 87; }
+  # Input: the merged frames, or in a plain file run (file/submit_file.sh,
+  # PLAIN=1) the generator file itself, skipped to this chunk's block as
+  # run.sh does (chunk * events per chunk).
+  local sim_input=${MERGED} sim_skip=0
+  if [ "${PLAIN:-0}" = 1 ]; then
+    sim_input=${SIGNAL_FILE}; sim_skip=$((10#${CHUNK} * FRAMES))
+    case "${sim_input}" in
+      root://*|https://*) ;;   # streamed, as run.sh does
+      *) [ -s "${sim_input}" ] || { echo "ERROR: no input file ${sim_input}"; exit 87; } ;;
+    esac
+  else
+    [ -s "${MERGED}" ] || { echo "ERROR: no merged file ${MERGED}"; exit 87; }
+  fi
   # thisepic.sh reads positional arguments and sets DETECTOR_CONFIG, so it
   # is sourced with none and the requested configuration restored (run.sh).
   DETECTOR_CONFIG_REQUESTED=${DETECTOR_CONFIG}
   set --
   source /opt/detector/epic-${DETECTOR_VERSION}/bin/thisepic.sh
   export DETECTOR_CONFIG=${DETECTOR_CONFIG_REQUESTED}
-  export DETECTOR_COMPACT=${DETECTOR_PATH}/${DETECTOR_CONFIG}_${EBEAM}x${PBEAM}.xml
+  # DETECTOR_BEAMS (run.env, as run.sh) names an ion geometry, e.g. 9x115_Ag107.
+  export DETECTOR_COMPACT=${DETECTOR_PATH}/${DETECTOR_CONFIG}_${DETECTOR_BEAMS:-${EBEAM}x${PBEAM}}.xml
   [ -f "${DETECTOR_COMPACT}" ] || { echo "ERROR: no geometry ${DETECTOR_COMPACT}"; exit 83; }
 
-  # Simulation: run.sh's common and hepmc flags; the merged file is not skipped.
+  # Simulation: run.sh's common and hepmc flags; the merged file is not
+  # skipped, a plain file run skips to its block.
   stage simulation start "${FRAMES} frames"
   {
     date
@@ -159,11 +171,11 @@ simreco() {
       --compactFile "${DETECTOR_COMPACT}" \
       --outputFile "${FULL_TEMP}/${TASKNAME}.edm4hep.root" \
       --runType batch \
-      --skipNEvents 0 \
+      --skipNEvents "${sim_skip}" \
       --hepmc3.useHepMC3 true \
       --physics.alternativeStableStatuses "${STABLE_STATUSES}" \
       --physics.alternativeDecayStatuses "${DECAY_STATUSES}" \
-      --inputFiles "${MERGED}"
+      --inputFiles "${sim_input}"
     ls -al "${FULL_TEMP}/${TASKNAME}.edm4hep.root"
   } 2>&1 | tee "${LOG_TEMP}/${TASKNAME}.npsim.log" | tail -n 200
   stage simulation ok

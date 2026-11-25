@@ -1,7 +1,8 @@
 #!/bin/bash
-# Condor executable: one chunk. The merge step runs in MERGER_CONTAINER, then
-# simulation and reconstruction in CONTAINER, on one scratch directory; the
-# outputs and the stage logs are copied to OUT_DIR.
+# Condor executable: one chunk of a background-only or file run. The merge
+# step (skipped in a plain file run), simulation and reconstruction all run
+# in the run's one image, on one scratch directory; the outputs and the stage
+# logs are copied to OUT_DIR.
 # Usage: job.sh <chunk> <run_dir>
 set -uo pipefail
 CHUNK=$1
@@ -9,7 +10,8 @@ RUN_DIR=$2
 source "${RUN_DIR}/run.env"
 HERE=$(dirname "$(realpath "$0")")
 TASKNAME=${SAMPLE}.$(printf '%04d' "${CHUNK}")
-echo "date: $(date)  host: $(hostname -f)  merger: ${MERGER}"
+if [ "${PLAIN:-0}" = 1 ]; then RUN_KIND="plain file (no merge)"; else RUN_KIND="merger ${MERGER}"; fi
+echo "date: $(date)  host: $(hostname -f)  ${RUN_KIND}  image: $(basename "${CONTAINER}")"
 
 # Outputs already there: a resubmitted chunk that finished has nothing to do.
 RECO_OUT=${OUT_DIR}/RECO/${TASKNAME}.eicrecon.edm4eic.root
@@ -37,7 +39,11 @@ run_in() {
     "${image}" bash "${HERE}/bgmix_payload.sh" "$@" "${CHUNK}" "${RUN_DIR}" "${WORK}"
 }
 
-run_in "${MERGER_CONTAINER}" merge || exit $?
+# A plain file run (file/submit_file.sh, PLAIN=1) has no merge: npsim reads
+# the generator file itself.
+if [ "${PLAIN:-0}" != 1 ]; then
+  run_in "${MERGER_CONTAINER}" merge || exit $?
+fi
 if [ "${MERGE_ONLY:-0}" = 1 ]; then
   # Benchmark: the merged file's summary instead of simulation (bench/).
   run_in "${CONTAINER}" extract || exit $?

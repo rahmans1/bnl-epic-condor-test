@@ -1,6 +1,6 @@
 ---
 name: epic-condor-run
-description: Run, test, monitor and check ePIC simulation jobs on BNL SDCC HTCondor with this repo. Covers background-only mixed frames, particle-gun singles (any particle, energy, theta range), and guns overlaid on beam backgrounds. Use when someone asks to run or submit singles, a particle gun, backgrounds, an overlay, or a new angular or energy configuration; to check job status or outputs; or to resubmit failed chunks. Also use it when someone wants to learn the commands: show or explain them, or write a reusable script, without running anything.
+description: Run, test, monitor and check ePIC simulation jobs on BNL SDCC HTCondor with this repo, in the eic_xl container release the user chooses (it can list the available releases). Covers plain simulation of a generator HepMC3 (EVGEN) file, the same file with beam backgrounds mixed in, particle-gun singles (any particle, energy, theta range), guns overlaid on beam backgrounds, and background-only frames, with either merger (hepmcmerger by default, TimeFrameBuilder on request). Use when someone asks to run, simulate or submit a HepMC3 or EVGEN file, singles, a particle gun, backgrounds, an overlay or background mixing, or a new angular or energy configuration; to see which container releases exist or run in a specific one; to memory-profile a sample; to check job status or outputs; or to resubmit failed chunks. Also use it when someone wants to learn the commands: show or explain them, or write a reusable script, without running anything.
 ---
 
 # Running ePIC jobs on SDCC Condor with this repo
@@ -17,7 +17,7 @@ Many users want to run this themselves later. When they ask to be shown,
 taught, or given the commands or a script, or say "don't run anything":
 
 - **Don't execute anything:** no dry runs, no submissions. Write the exact commands in the order of sections 1-5 below (config edits, dry run, local test, full run, monitoring, output check), each with a one-line comment on what it does and what output to look for.
-- **Explain the flags they'll use** (`-c -B -p -e -n -s -o -d -F -H -m`), and where each result lands on disk.
+- **Explain the flags they'll use** (`-c -B -M -C -p -e -n -s -o -d -F -H -m -R`), and where each result lands on disk.
 - **Use their real values:** particle, energy, angles, config file name, absolute paths. Don't use placeholders where you know the value.
 - **Scripts:** if they ask for one, write it in the repo root (e.g. `run_<name>.sh`) with `set -euo pipefail`, the dry run first, and a comment block at the top. Don't run it unless they ask.
 
@@ -28,9 +28,42 @@ they can reuse it.
 
 | The user wants | Mode | Config | Geometry |
 |---|---|---|---|
+| A generator HepMC3 (EVGEN) file simulated as is | plain file | `configs/<sample>.env` (`MODE=file`) | the file config's (`DETECTOR_BEAMS`, else `EBEAMxPBEAM`) |
+| The same file with beam backgrounds mixed in | file overlay | a file config plus `-B configs/allbg_*.env` | the file config's |
 | Single particles (gun) | plain gun | `configs/singles_*.env` (`MODE=gun`) | **5x41** (default) |
 | Single particles on top of the beam backgrounds | overlay | a gun config plus `-B configs/allbg_*.env` | the background config's (10x275 / 10x100) |
 | Beam backgrounds only, no physics | background only | `configs/allbg_<beams>_gold10um.env` | the background config's (10x275 / 10x100) |
+
+**Merger:** every mode that mixes backgrounds uses `hepmcmerger`
+(SignalBackgroundMerger) by default, as production does. Add
+`-M timeframebuilder` only when the user asks for TimeFrameBuilder. Both
+take any number of background sources.
+
+**Release (container image):** every step of a run uses one eic_xl image,
+with the detector release of the same version. Never mix images within a
+run or add per-merger images.
+
+- **"Which releases are there?" / "what can I run in?":** run `tools/releases.sh` (`all` for every release) and show the table. It lists each release's detector version and whether it has hepmcmerger and TimeFrameBuilder.
+- **Default:** the configs' `CONTAINER`, the latest release. Use it when the user names none, and say which release the run uses.
+- **The user picks a release:** add `-C <release>` (e.g. `-C 26.10.0`) to every submit command of that run: dry run, test and full run. Don't edit the configs for a one-off choice. Without `-o` the run goes under `out/release-<release>/`.
+- **If unsure which they want** (for example "test this in the release production uses"), show the table and ask.
+- **Refusals:** an unknown release, or `-M timeframebuilder` on a release without it (before 26.08.0). Report the message; don't work around it.
+- **Patched TimeFrameBuilder:** `tfb-patched/build` is used only with the default image. With `-C`, TimeFrameBuilder runs stock, so keep chunks at 100 frames.
+- **A newer release than the configs' default:** tell the user and offer to update `CONTAINER` and `DETECTOR_VERSION` in `configs/*.env`.
+
+For a new generator file, copy `configs/beagle_eAg_9x115_q2_1to10.env` to
+a descriptive name and edit only these keys:
+
+- `SAMPLE`: the run directory name. Use the file's stem.
+- `SIGNAL_FILE`: a `.hepmc3.tree.root` file, as a GPFS path or a `root://` URL (for example the anonymous OSDF door, `root://dtn2304.jlab.org:8443//jlab-osdf-ro/eic/EPIC/cache/EVGEN/...`).
+- `SIGNAL_NEVENTS`: events in the file. Take it from the Rucio `events` metadata, or count the `hepmc3_tree` entries. Don't guess.
+- `EVENTS_PER_CHUNK`: events per job (`-e` overrides it).
+- `EBEAM`, `PBEAM`, and for ion beams `DETECTOR_BEAMS` (e.g. `9x115_Ag107`). The dry run fails if the image has no such geometry; list the choices with `apptainer exec <CONTAINER> ls /opt/detector/epic-<version>/share/epic/ | grep craterlake_`.
+
+A file overlay (`-B`) needs a background config. Only 10x275 and 10x100 sets
+exist. With other beams the submit prints `WARNING backgrounds are for ...`
+and goes ahead, keeping the sample's geometry: fine for testing, not
+physics. Tell the user when that happens.
 
 For a new gun configuration, copy `configs/singles_20GeV_1to4deg.env` to a
 descriptive name and edit only these keys:
@@ -57,23 +90,25 @@ user before changing it.
 
 ## 2. Always dry-run, then test small, before the full run
 
-1. **Dry run** (`-d`): writes the run directories and `.sub` files and submits nothing. Check the printed `geometry`, `chunks` and `output` lines against the request. The `geometry` line must say `epic_craterlake_5x41.xml` for a plain gun and the background config's beams (e.g. `epic_craterlake_10x275.xml`) for an overlay.
+1. **Dry run** (`-d`): writes the run directories and `.sub` files and submits nothing. Check the printed `geometry`, `chunks` and `output` lines against the request. The `geometry` line must say `epic_craterlake_5x41.xml` for a plain gun, the background config's beams (e.g. `epic_craterlake_10x275.xml`) for a gun overlay, and the file config's geometry for both file modes.
 
        ./submit.sh -c configs/<gun>.env -d
        ./submit.sh -c configs/<gun>.env -B configs/allbg_10x275_gold10um.env -d
+       ./submit.sh -c configs/<file>.env -n 1 -d
+       ./submit.sh -c configs/<file>.env -B configs/allbg_10x100_gold10um.env -n 1 -d
 
 2. **Small test** into a throwaway output base (`-o test-out`). The queue can sit idle for hours, so run one chunk directly on the submit node instead of through Condor. Plain gun:
 
        ./submit.sh -c configs/<gun>.env -p <one particle> -e 3 -n 1 -o test-out -d
        _CONDOR_SCRATCH_DIR=$PWD/test-out/scratch gun/gun_job.sh 0 $PWD/test-out/SINGLE/<particle>/<energy>/<min>to<max>deg
 
-   Overlay: the same with `-B ...` and `-e 2`; the run directory is under `test-out/SINGLE_BG/...`. Always pass the run directory as an absolute path. Background only: `./submit.sh -c configs/allbg_...env -n 1 -f 2 -o test-out -d`, then `_CONDOR_SCRATCH_DIR=$PWD/test-out/scratch ./job.sh 0 $PWD/test-out/<sample>/<merger>`.
+   Overlay: the same with `-B ...` and `-e 2`; the run directory is under `test-out/SINGLE_BG/...`. Always pass the run directory as an absolute path. File modes: `./submit.sh -c configs/<file>.env [-B ...] -n 1 -e 2 -o test-out -d`, then `_CONDOR_SCRATCH_DIR=$PWD/test-out/scratch ./job.sh 0 <the printed output dir>` (`test-out/FILE/<sample>/plain` or `test-out/FILE_BG/<bg sample>/<merger>/<sample>`). Background only: `./submit.sh -c configs/allbg_...env -n 1 -f 2 -o test-out -d`, then `_CONDOR_SCRATCH_DIR=$PWD/test-out/scratch ./job.sh 0 $PWD/test-out/<sample>/<merger>`.
 
    A chunk takes about 3 minutes, almost all of it start-up. Run it in the background.
 
 3. **Check the test output** with `tools/check_reco.py` (step 4). Don't submit the full run until the test shows the right particle, angles and energy, and, for an overlay, exactly one status-1 gun particle per frame plus backgrounds.
 
-4. **Full run:** the same command without `-d`, `-o test-out`, `-e` or `-n`. The chunk count comes from `GUN_EVENTS / EVENTS_PER_CHUNK` (2000 per job for the plain gun, `OVERLAY_EVENTS_PER_CHUNK` = 100 for the overlay). Report the cluster IDs and the output directories.
+4. **Full run:** the same command without `-d`, `-o test-out`, `-e` or `-n`. A file run without `-n` covers the whole file (`SIGNAL_NEVENTS / EVENTS_PER_CHUNK` jobs), so confirm the size with the user, or pass `-n`. For guns the chunk count comes from `GUN_EVENTS / EVENTS_PER_CHUNK` (2000 per job for the plain gun, `OVERLAY_EVENTS_PER_CHUNK` = 100 for the overlay). Report the cluster IDs and the output directories.
 
 Delete `test-out/` once you're done with it; it is gitignored.
 
@@ -84,7 +119,7 @@ Delete `test-out/` once you're done with it; it is gitignored.
 
 Jobs often sit idle: `group_eic` is shared, and only slots with at least
 `request_memory` match (default 3500 MB for a plain gun, 6000 MB for the
-overlay and background-only runs). `condor_q -better-analyze <cluster>.0`
+overlays, the file modes and background-only runs). `condor_q -better-analyze <cluster>.0`
 shows how many slots match. Idle is not an error. Don't remove jobs without
 asking.
 
@@ -100,8 +135,10 @@ background command: `until [ -z "$(condor_q <ids> -af ClusterId)" ]; do sleep 12
 ## 4. Check outputs
 
     apptainer exec --cleanenv -B /gpfs02,/gpfs/mnt/gpfs02 \
-      /cvmfs/singularity.opensciencegrid.org/eicweb/eic_xl:26.07.3-stable \
+      /cvmfs/singularity.opensciencegrid.org/eicweb/eic_xl:26.11.0-stable \
       python3 tools/check_reco.py <RECO file> [max_events]
+
+Use the run's own release here (`CONTAINER` in its `run.env`).
 
 It prints, per event: the gun particles (status 1) with PDG, theta, |p| and
 time, plus counts by generator status. Status codes: 1 gun, 4 beams
@@ -110,7 +147,17 @@ time, plus counts by generator status. Status codes: 1 gun, 4 beams
 
 Expected values:
 - **Plain gun:** one particle per event, theta within the range, energy as set.
-- **Overlay:** one status-1 particle per frame, at a random time within the 2 µs frame (not 0), about 26k status 2001 per frame at 10x275, and a few 3001.
+- **Gun overlay:** one status-1 particle per frame, at a random time within the 2 µs frame (not 0), about 26k status 2001 per frame at 10x275, and a few 3001.
+- **File modes:** the generator's own particles (status 1 final state, 4 beams, plus generator-specific codes), and in an overlay the background statuses as well.
+
+**Memory profile.** Each program runs under prmon. For peak memory per
+step, read the chunk's log tarball:
+
+    tar -xzOf <run dir>/LOG/<task>.log.tar.gz --wildcards '*npsim.prmon.json' | python3 -c "import json,sys; m=json.load(sys.stdin)['Max']; print({k: round(m[k]/1e6, 2) for k in ('rss','pss')}, 'GB;', m['wtime'], 's')"
+
+The same with `*eicrecon.prmon.json`, and in mixing modes
+`*hepmcmerger.prmon.json` or `*timeframebuilder.prmon.json`. A 1-chunk plain
+file run of 100 events is the standard memory profile of a new sample.
 
 ## 5. Failures and resubmission
 
@@ -123,6 +170,8 @@ Expected values:
 ## Gotchas found the hard way
 
 - **Container environment:** always run containers with `apptainer exec --cleanenv`. Without it, the host environment breaks ROOT's module cache.
-- **SignalBackgroundMerger:** it takes at most 4 backgrounds. The 10x275 overlay has 5, so the overlay uses TimeFrameBuilder.
-- **TimeFrameBuilder memory:** stock 0.9.2 leaks memory and passes 6 GB above about 250 frames per job. For bigger overlay or TFB chunks, build the patched TFB into `tfb-patched/` (README) or keep chunks at 100 frames.
+- **SignalBackgroundMerger source count:** its usage text says "up to four background sources", but 2.4.0 takes any number (five merged fine). Don't switch mergers for that reason.
+- **TimeFrameBuilder memory:** only with `-M timeframebuilder`. Stock 0.9.2 (still what 26.11.0 ships) leaks memory and passes 6 GB above about 250 frames per job. For bigger TFB chunks, build the patched TFB into `tfb-patched/` (README) or keep chunks at 100 frames.
+- **"Stable particle (PDG: ...) with daughters! ... Cannot Simmulate this MC Record"** in the npsim log: a bad generator record, not a framework failure. Report the sample and chunk; the fix is in the input file.
+- **Old run directories:** ones made before the single-image change recorded another image and refuse to be extended. Use a new `-o`.
 - **eicrecon "No beam electrons/protons found":** expected in background-only frames. Not a failure.

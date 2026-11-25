@@ -1,6 +1,8 @@
 #!/bin/bash
 # Submit background-only mixed runs to BNL SDCC HTCondor. A config with
-# MODE=gun runs particle-gun singles instead (gun/submit_gun.sh).
+# MODE=gun runs particle-gun singles instead (gun/submit_gun.sh), and one
+# with MODE=file a generator HepMC3 file, plain or with -B background
+# overlay (file/submit_file.sh).
 #
 #   ./submit.sh -c configs/allbg_10x275_gold10um.env -n 100 -f 100 [options]
 #
@@ -9,6 +11,7 @@
 #   -f N      frames (2 us time slices) per chunk                [100]
 #   -s N      first chunk index (to extend a run)                [0]
 #   -M NAME   merger: hepmcmerger or timeframebuilder            [hepmcmerger]
+#   -C REL    eic_xl release for every step, e.g. 26.10.0  [the config's CONTAINER]
 #   -o DIR    output base; the run goes to DIR/<SAMPLE>/<MERGER> [./out]
 #   -m MB     initial request_memory                             [6000]
 #   -R MB     memory cap for automatic retries (x2 per OOM)      [12000]
@@ -19,10 +22,9 @@
 #             DIR/<SAMPLE>/bench-<MERGER>
 #   -d        dry run: write the run directory and .sub, do not submit
 #
-# The merge step runs in the image the config names for the merger
-# (HEPMCMERGER_CONTAINER / TFB_CONTAINER; TimeFrameBuilder is only in
-# eic_xl 26.08.0 and later); simulation and reconstruction run in CONTAINER
-# in both modes, with the same seeds, so the modes compare chunk for chunk.
+# Every step (merge, simulation, reconstruction) runs in the config's one
+# CONTAINER, the latest eic_xl release. Both merger modes use the same seeds,
+# so the modes compare chunk for chunk.
 #
 # MERGER_PATH, from the config or the environment, puts a directory first on
 # PATH for the merge step (a locally built merger, e.g. tfb-patched/build).
@@ -38,29 +40,44 @@ HERE=$(dirname "$(realpath "$0")")
 for ((i = 1; i <= $#; i++)); do
   if [ "${!i}" = -c ]; then j=$((i + 1))
     if [ -f "${!j:-}" ] && grep -q '^MODE=gun' "${!j}"; then exec "${HERE}/gun/submit_gun.sh" "$@"; fi
+    if [ -f "${!j:-}" ] && grep -q '^MODE=file' "${!j}"; then exec "${HERE}/file/submit_file.sh" "$@"; fi
   fi
 done
 
 CONFIG="" NJOBS="" FRAMES=100 FIRST=0 OUT_BASE=${HERE}/out MEM=6000 MEM_MAX=12000
-KEEP_FULL=0 KEEP_MERGED=0 DRY=0 MERGER=hepmcmerger MERGE_ONLY=0
-while getopts "c:n:f:s:M:o:m:R:FHXd" opt; do
+KEEP_FULL=0 KEEP_MERGED=0 DRY=0 MERGER=hepmcmerger MERGE_ONLY=0 RELEASE="" OUT_SET=0
+while getopts "c:n:f:s:M:C:o:m:R:FHXd" opt; do
   case $opt in
     c) CONFIG=$OPTARG ;; n) NJOBS=$OPTARG ;; f) FRAMES=$OPTARG ;;
-    s) FIRST=$OPTARG ;; M) MERGER=$OPTARG ;; o) OUT_BASE=$OPTARG ;; m) MEM=$OPTARG ;; R) MEM_MAX=$OPTARG ;;
+    s) FIRST=$OPTARG ;; M) MERGER=$OPTARG ;; C) RELEASE=$OPTARG ;; o) OUT_BASE=$OPTARG; OUT_SET=1 ;; m) MEM=$OPTARG ;; R) MEM_MAX=$OPTARG ;;
     F) KEEP_FULL=1 ;; H) KEEP_MERGED=1 ;; X) MERGE_ONLY=1 ;; d) DRY=1 ;;
-    *) sed -n '2,32p' "$0"; exit 2 ;;
+    *) sed -n '2,34p' "$0"; exit 2 ;;
   esac
 done
-[ -n "${CONFIG}" ] && [ -n "${NJOBS}" ] || { sed -n '2,32p' "$0"; exit 2; }
+[ -n "${CONFIG}" ] && [ -n "${NJOBS}" ] || { sed -n '2,34p' "$0"; exit 2; }
 CONFIG=$(realpath "${CONFIG}")
 source "${CONFIG}"
 cd "${HERE}"
+# -C RELEASE: run every step in that eic_xl release instead of the config's
+# (tools/releases.sh lists them); the detector release follows it. Without
+# -o such a run goes under out/release-<RELEASE>/, apart from the default's.
+if [ -n "${RELEASE}" ]; then
+  CONTAINER=/cvmfs/singularity.opensciencegrid.org/eicweb/eic_xl:${RELEASE}-stable
+  DETECTOR_VERSION=${RELEASE}
+  [ -d "${CONTAINER}" ] || { echo "no eic_xl release ${RELEASE} on CVMFS; tools/releases.sh lists the ones there"; exit 1; }
+  [ "${OUT_SET}" = 1 ] || OUT_BASE=${OUT_BASE}/release-${RELEASE}
+fi
 
 SOURCES=$(realpath "${SOURCES_JSON}")
 [ -f "${SOURCES}" ] || { echo "no sources file ${SOURCES}"; exit 1; }
+# One image for every step: the merger runs in CONTAINER too.
+MERGER_CONTAINER=${CONTAINER}
+# TimeFrameBuilder is only in eic_xl 26.08.0 and later.
+if [ "${MERGER}" = timeframebuilder ] && [ -z "${MERGER_PATH:-}" ] && ! [ -L "${CONTAINER}/opt/local/bin/timeframe_builder" ] && ! [ -e "${CONTAINER}/opt/local/bin/timeframe_builder" ]; then
+  echo "$(basename "${CONTAINER}") has no timeframe_builder; pick a release that does (tools/releases.sh) or use hepmcmerger"; exit 1
+fi
 case "${MERGER}" in
-  hepmcmerger) MERGER_CONTAINER=${HEPMCMERGER_CONTAINER:-${CONTAINER}} ;;
-  timeframebuilder) MERGER_CONTAINER=${TFB_CONTAINER:?the config names no TFB_CONTAINER} ;;
+  hepmcmerger|timeframebuilder) ;;
   *) echo "unknown merger ${MERGER} (hepmcmerger or timeframebuilder)"; exit 2 ;;
 esac
 [ -f "mergers/${MERGER}.sh" ] || { echo "no adapter mergers/${MERGER}.sh"; exit 1; }
@@ -74,8 +91,6 @@ SIG=$(jq -c --argjson st "${SIGNAL_ROW_STATUS}" '[.[] | select(.status == $st)]'
 SIGNAL_FILE=$(jq -r '.[0].file' <<<"${SIG}")
 SIGNAL_FREQ=$(jq -r '.[0].freq' <<<"${SIG}")
 SIGNAL_STATUS=$(jq -r '.[0].status' <<<"${SIG}")
-NBG=$(jq --argjson st "${SIGNAL_ROW_STATUS}" '[.[] | select(.status != $st)] | length' "${SOURCES}")
-[ "${NBG}" -le 4 ] || { echo "the merger takes at most 4 backgrounds; ${NBG} left"; exit 1; }
 awk "BEGIN{exit !(${SIGNAL_FREQ} > 0)}" || { echo "signal row must have freq > 0 (it is a background)"; exit 1; }
 
 # Signal events per chunk: mean = freq * window * frames, plus 6 sigma and a
